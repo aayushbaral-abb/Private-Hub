@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Portal Hub</title>
+    <title>Aayush Baral-Private Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Use the specific version of the Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -62,6 +62,12 @@
             box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
             width: 90%;
             max-width: 500px;
+        }
+        #email {
+            cursor: not-allowed;
+            /* Optional styling for visual confirmation */
+            opacity: 0.8; 
+            background-color: #f0f0f0; 
         }
     </style>
 </head>
@@ -573,12 +579,12 @@
         const renderLogin = () => {
             return `
                 <div class="card p-8 rounded-xl w-full max-w-md">
-                    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Private Portal Login</h1>
+                    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Aayush's Portal Login</h1>
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
                             <!-- Email input is now editable for multi-user support -->
-                            <input type="email" id="email" name="email" value="aayushbaral.abb@gmail.com" required
+                            <input type="email" id="email" name="email" value="aayushbaral.abb@gmail.com" readonly
                                 class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
                         </div>
                         <div>
@@ -631,12 +637,12 @@
                 <h2 class="text-2xl font-bold mb-6 text-gray-800">Add New Link</h2>
                 <form id="add-link-form" class="space-y-4">
                     <div>
-                        <label for="link-title" class="block text-sm font-medium text-gray-700">Title (e.g., Supabase Docs)</label>
+                        <label for="link-title" class="block text-sm font-medium text-gray-700">Title</label>
                         <input type="text" id="link-title" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
                     </div>
                     <div>
-                        <label for="link-url" class="block text-sm font-medium text-gray-700">URL (Must start with http:// or https://)</label>
-                        <input type="url" id="link-url" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                        <label for="link-url" class="block text-sm font-medium text-gray-700">URL</label>
+                        <input type="url" id="link-url" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="https://">
                     </div>
                     <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 transition duration-150">
                         💾 Save Link
@@ -708,7 +714,7 @@
                 <!-- Add Memo -->
                 <div class="card p-6 rounded-xl">
                     <h3 class="text-lg font-medium mb-3 text-gray-700">Save a New Memo</h3>
-                    <textarea id="add-memo-textarea" rows="8" placeholder="Type your private notes, ideas, or brain dumps here..." 
+                    <textarea id="add-memo-textarea" rows="8" placeholder="Type your private notes or ideas here..." 
                         class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 resize-none"></textarea>
                     
                     <button id="save-memo-btn" type="button" class="w-full mt-3 py-2 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 transition duration-150">
@@ -1165,4 +1171,5 @@
 
     </script>
 </body>
+
 </html>
