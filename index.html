@@ -174,7 +174,7 @@
                 .from('links')
                 .select('*')
                 .eq('user_id', userId)
-                .order('id', { ascending: false });
+                .order('id', { ascending: true });
 
             if (linksError) { console.error("Error fetching links:", linksError); } else { links = linksData || []; }
 
@@ -1173,3 +1173,4 @@
 </body>
 
 </html>
+
