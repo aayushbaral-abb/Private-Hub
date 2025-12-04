@@ -579,7 +579,7 @@
         const renderLogin = () => {
             return `
                 <div class="card p-8 rounded-xl w-full max-w-md">
-                    <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Aayush's Private Hub</h1>
+                    <h1 class="text-3xl font-bold mb-6 text-center text-blue-800">🔐 Aayush's Private Hub</h1>
                     <form id="login-form" class="space-y-4">
                         <div>
                             <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
@@ -595,7 +595,7 @@
                         </div>
                         <button type="submit"
                             class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition duration-150">
-                            Access Content 
+                            Log In
                         </button>
                     </form>
                 </div>
@@ -778,7 +778,7 @@
                             placeholder="Re-type new password">
                     </div>
                     <button type="submit" 
-                        class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 transition duration-150">
+                        class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700 transition duration-150">
                         🔒 Change Password
                     </button>
                 </form>
@@ -801,7 +801,7 @@
                 <div class="w-full max-w-5xl">
                     <!-- Header/Nav Bar -->
                     <header class="card p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center mb-6 bg-gray-800 shadow-lg">
-                        <div class="text-xl font-extrabold text-green-400 mb-2 sm:mb-0">Aayush's Dashboard</div>
+                        <div class="text-xl font-extrabold text-green-400 mb-2 sm:mb-0">My Dashboard</div>
                         <div class="flex space-x-2 sm:space-x-4 overflow-x-auto pb-1">
                             <button onclick="setCurrentView('links-view')" class="nav-btn py-2 px-3 sm:px-4 font-medium text-sm sm:text-base text-white whitespace-nowrap hover:text-blue-400 transition duration-150 ${currentView === 'links-view' ? 'active' : ''}">Link View</button>
                             <button onclick="setCurrentView('add-link')" class="nav-btn py-2 px-3 sm:px-4 font-medium text-sm sm:text-base text-white whitespace-nowrap hover:text-blue-400 transition duration-150 ${currentView === 'add-link' ? 'active' : ''}">+ Add Link</button>
@@ -1173,5 +1173,6 @@
 </body>
 
 </html>
+
 
 
