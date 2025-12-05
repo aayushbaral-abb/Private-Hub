@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aayush Baral - Private Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        /* Optimized Transitions */
+        .transition-colors { transition-property: background-color, border-color, color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 200ms; }
+        .transition-opacity { transition-property: opacity; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 200ms; }
+
+        .card { 
+            background-color: white; 
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* Navigation Styles */
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            color: #374151;
+            transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .nav-btn:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+            color: #111827;
+        }
+        .nav-btn.active { 
+            background-color: white; 
+            color: #2563eb;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        /* Drag and Drop Zone active state */
+        .drag-active {
+            background-color: #eff6ff !important;
+            border-color: #3b82f6 !important;
+        }
+
+        /* Hide scrollbar but allow scrolling */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Custom Scrollbar for Memos */
+        .memo-scroll {
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .memo-scroll::-webkit-scrollbar { width: 6px; }
+        .memo-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+
+        /* Modal */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        .modal-content {
+            background: white; padding: 24px; border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%; max-width: 420px;
+        }
+        
+        /* Animation: Only used when switching views, removed from static templates */
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="min-h-screen flex flex-col items-center justify-start pt-4 sm:pt-6 p-3 sm:p-4">
+        <div id="initial-loading" class="flex flex-col items-center space-y-4 mt-20">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+            <div class="text-gray-500 font-medium">Loading Hub...</div>
+        </div>
+    </div>
+    
+    <div id="modal-container"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://xihewtllreynajmebsux.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpaGV3dGxscmV5bmFqbWVic3V4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NTg3MDgsImV4cCI6MjA4MDMzNDcwOH0.3t70naGHcoXEEGRl7iq9ccy0akcIf1pvjO-vOVN7E7Y'; 
+        
+        const ALLOWED_EMAIL = "aayushbaral.abb@gmail.com";
+        const STORAGE_BUCKET = 'personal-documents';
+        const MAX_FILE_SIZE_MB = 50; 
+        const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+        const SUPABASE_STORAGE_KEY = 'supabase-session-aayush'; 
+
+        let supabase;
+        let isAuthenticated = false;
+        let userId = null;
+        let currentView = 'links-view';
+        let links = [];
+        let memos = [];
+        let documents = [];
+
+        // --- UTILS ---
+        const displayMessage = (message, type = 'success') => {
+            // Attach to body so it persists when 'app' div is re-rendered
+            const container = document.body;
+            const color = type === 'error' ? 'bg-red-500' : 'bg-emerald-600';
+            const messageEl = document.createElement('div');
+            messageEl.className = `fixed top-4 right-4 sm:top-6 sm:right-6 px-4 py-3 rounded-lg text-white shadow-lg ${color} z-50 transition-opacity duration-300 font-medium text-sm flex items-center gap-2`;
+            messageEl.innerHTML = `<span>${message}</span>`;
+            container.appendChild(messageEl);
+            setTimeout(() => {
+                messageEl.style.opacity = '0';
+                setTimeout(() => messageEl.remove(), 300);
+            }, 1000); // Popup duration set to 1 second
+        };
+
+        const showModal = (contentHTML) => {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `<div class="modal" id="my-modal"><div class="modal-content animate-fade-in">${contentHTML}</div></div>`;
+            document.getElementById('my-modal').addEventListener('click', (e) => { if (e.target.id === 'my-modal') closeModal(); });
+        };
+
+        const closeModal = () => { document.getElementById('modal-container').innerHTML = ''; };
+        
+        const isFileViewable = (filename) => {
+            return ['.pdf', '.jpg', '.jpeg', '.png', '.gif', '.svg'].some(ext => filename.toLowerCase().endsWith(ext));
+        };
+        
+        const getBaseNameAndExtension = (filename) => {
+            const lastDot = filename.lastIndexOf('.');
+            if (lastDot <= 0) return { baseName: filename, extension: '' };
+            return { baseName: filename.substring(0, lastDot), extension: filename.substring(lastDot) };
+        };
+
+        // --- SECURITY & CLEANUP ---
+        
+        // Strictly clears all session data, memory variables, and storage
+        const cleanupSession = () => {
+            // 1. Clear Supabase local storage key
+            localStorage.removeItem(SUPABASE_STORAGE_KEY);
+            // 2. Clear Session storage (extra safety)
+            sessionStorage.clear();
+            // 3. Wipe memory variables
+            isAuthenticated = false;
+            userId = null;
+            links = [];
+            memos = [];
+            documents = [];
+            // 4. Clear any potential DOM values
+            const pwField = document.getElementById('password');
+            if(pwField) pwField.value = '';
+        };
+
+        // --- DATA ---
+        const fetchData = async () => {
+            if (!userId || !supabase) return;
+            const [linksRes, memosRes, docsRes] = await Promise.all([
+                supabase.from('links').select('*').eq('user_id', userId).order('id', { ascending: true }),
+                supabase.from('memos').select('*').eq('user_id', userId).order('id', { ascending: false }),
+                supabase.storage.from(STORAGE_BUCKET).list(userId + '/', { limit: 100, sortBy: { column: 'created_at', order: 'desc' } })
+            ]);
+
+            if (!linksRes.error) links = linksRes.data || [];
+            if (!memosRes.error) memos = memosRes.data || [];
+            if (!docsRes.error) documents = docsRes.data ? docsRes.data.filter(f => f.name !== '.emptyFolderPlaceholder') : [];
+            
+            // Re-render content quietly (no animation) to show new data
+            if(document.getElementById('app-shell')) {
+                updateContent(false); 
+            }
+        };
+
+        // --- ACTIONS ---
+        const openLink = (url, e) => {
+            if (e.target.closest('.link-actions')) return; 
+            window.open(url, '_blank').focus();
+        };
+        
+        const handleDbAction = async (table, action, payload, id = null) => {
+            let query = supabase.from(table);
+            if (action === 'insert') query = query.insert({ user_id: userId, ...payload });
+            if (action === 'update') query = query.update(payload).eq('id', id).eq('user_id', userId);
+            if (action === 'delete') query = query.delete().eq('id', id).eq('user_id', userId);
+            
+            const { error } = await query;
+            if (error) displayMessage(error.message, 'error');
+            else { displayMessage("Success!"); if(action !== 'insert') closeModal(); await fetchData(); }
+        };
+
+        const addLink = (title, url) => handleDbAction('links', 'insert', { title, url });
+        const updateLink = (id, title, url) => handleDbAction('links', 'update', { title, url }, id);
+        const deleteLink = (id) => handleDbAction('links', 'delete', {}, id);
+
+        const addMemo = (content) => {
+            handleDbAction('memos', 'insert', { content });
+            const textarea = document.getElementById('add-memo-textarea');
+            if(textarea) textarea.value = '';
+        };
+        const updateMemo = (id, content) => handleDbAction('memos', 'update', { content }, id);
+        const deleteMemo = (id) => handleDbAction('memos', 'delete', {}, id);
+
+        const uploadDocument = async (file) => {
+            if (file.size > MAX_FILE_SIZE_BYTES) return displayMessage(`Max 50MB`, 'error');
+            const dropText = document.getElementById('drop-text');
+            if(dropText) dropText.textContent = `Uploading ${file.name}...`;
+
+            const filePath = `${userId}/${file.name}`;
+            const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(filePath, file);
+            
+            if (error) {
+                displayMessage(error.message, 'error');
+                if(dropText) dropText.textContent = "Click or Drag file here";
+            } else { 
+                displayMessage("Uploaded!"); 
+                await fetchData(); 
+            }
+        };
+
+        const deleteDocument = async (filename) => {
+            const { error } = await supabase.storage.from(STORAGE_BUCKET).remove([`${userId}/${filename}`]);
+            if (error) displayMessage(error.message, 'error');
+            else { displayMessage("Deleted!"); closeModal(); await fetchData(); }
+        };
+
+        const renameDocument = async (oldFilename, newFilename) => {
+            if (oldFilename === newFilename) return closeModal();
+            const { error } = await supabase.storage.from(STORAGE_BUCKET).move(`${userId}/${oldFilename}`, `${userId}/${newFilename}`);
+            if (error) displayMessage(error.message, 'error');
+            else { displayMessage("Renamed!"); closeModal(); await fetchData(); }
+        };
+
+        const downloadDocument = async (filename) => {
+             const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(`${userId}/${filename}`);
+             if (!error) {
+                 const url = URL.createObjectURL(data);
+                 const a = document.createElement('a'); a.href = url; a.download = filename;
+                 document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+             }
+        }
+
+        const viewDocument = async (filename) => {
+             const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(`${userId}/${filename}`, 60);
+             if (!error) window.open(data.signedUrl, '_blank').focus();
+        }
+
+        const changeUserPassword = async (oldPassword, newPassword) => {
+            const { error: signInError } = await supabase.auth.signInWithPassword({ email: ALLOWED_EMAIL, password: oldPassword });
+            if (signInError) return displayMessage("Incorrect current password.", 'error');
+            const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+            if (!updateError) { displayMessage("Password changed!"); document.getElementById('password-change-form').reset(); }
+        };
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('password').value;
+            if (!password) return;
+            const btn = document.getElementById('unlock-btn');
+            btn.textContent = '...'; btn.disabled = true;
+
+            const { data, error } = await supabase.auth.signInWithPassword({ email: ALLOWED_EMAIL, password });
+            if (error || !data.user || data.user.email !== ALLOWED_EMAIL) {
+                btn.textContent = 'Unlock Hub'; btn.disabled = false; 
+                document.getElementById('password').value = ''; // Clear password field immediately
+                displayMessage("Access Denied", 'error');
+                if(data.user && data.user.email !== ALLOWED_EMAIL) {
+                    await supabase.auth.signOut();
+                    cleanupSession();
+                }
+            } else {
+                displayMessage("Access Granted");
+                isAuthenticated = true; 
+                userId = data.user.id; 
+                await fetchData(); 
+                render(); 
+            }
+        };
+
+        const handleLogout = async () => {
+            if(supabase) await supabase.auth.signOut();
+            cleanupSession();
+            window.location.reload();
+        };
+
+        // --- CORE VIEW LOGIC ---
+
+        const render = () => {
+            const initialLoading = document.getElementById('initial-loading');
+            if (initialLoading) initialLoading.remove();
+
+            if (!isAuthenticated) {
+                document.getElementById('app').innerHTML = renderLogin();
+                const loginForm = document.getElementById('login-form');
+                if(loginForm) loginForm.addEventListener('submit', handleLogin);
+                return;
+            }
+
+            // --- APP SHELL PATTERN ---
+            let appShell = document.getElementById('app-shell');
+            if (!appShell) {
+                document.getElementById('app').innerHTML = renderAuthenticatedShell();
+                appShell = document.getElementById('app-shell');
+                document.getElementById('logout-btn').addEventListener('click', handleLogout);
+            }
+            
+            // Initial render of content with animation
+            updateContent(true);
+            updateNavHighlight();
+        };
+
+        const updateContent = (animate = false) => {
+            const contentArea = document.getElementById('content-area');
+            if (!contentArea) return;
+
+            contentArea.innerHTML = getCurrentContentHtml();
+            
+            if (animate) {
+                contentArea.classList.remove('animate-fade-in');
+                void contentArea.offsetWidth; // Trigger reflow to restart animation
+                contentArea.classList.add('animate-fade-in');
+            } else {
+                contentArea.classList.remove('animate-fade-in');
+            }
+            
+            attachDynamicListeners();
+        };
+
+        const setCurrentView = (view) => {
+            if (currentView === view) return; // Prevent clicking same tab causing reload
+            currentView = view;
+            
+            updateNavHighlight();
+            updateContent(true); // Animate on view switch
+            fetchData(); 
+        };
+
+        const updateNavHighlight = () => {
+            const navIds = { 'links-view': 'nav-links', 'document': 'nav-docs', 'memo': 'nav-memos', 'settings': 'nav-settings' };
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            const activeId = navIds[currentView];
+            if(activeId) document.getElementById(activeId).classList.add('active');
+        };
+
+        // --- HTML TEMPLATES ---
+
+        const renderLogin = () => `
+            <div class="card p-8 rounded-2xl w-full max-w-sm border border-gray-100 shadow-xl bg-white animate-fade-in text-center mt-10">
+                <div class="mb-5 flex justify-center">
+                    <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Private Hub login</h1>
+                <p class="text-gray-500 text-sm mb-6">Access restricted to Aayush Baral</p>
+                <form id="login-form" class="space-y-4">
+                    <!-- autocomplete="new-password" prevents browser from filling saved passwords -->
+                    <input type="password" id="password" required autocomplete="new-password" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-500 outline-none transition-colors text-center" placeholder="Enter password">
+                    <button type="submit" id="unlock-btn" class="w-full py-3 px-4 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] transition-transform shadow-md">Unlock Hub</button>
+                </form>
+            </div>
+        `;
+
+        const renderAuthenticatedShell = () => `
+            <div id="app-shell" class="w-full max-w-2xl flex flex-col items-center animate-fade-in">
+                <!-- Header: flex-nowrap and min-w-0 are critical for slider behavior -->
+                <header class="w-full card bg-yellow-300 border-none rounded-2xl p-2 sm:p-3 flex flex-nowrap items-center shadow-lg mb-6 gap-2 sm:gap-4 sticky top-4 z-40">
+                    <div class="flex flex-col flex-shrink-0 ml-1">
+                        <span class="text-[14px] text-black-800 font-extrabold uppercase tracking-widest">Welcome!</span>
+                        <span class="text-base sm:text-lg font-black text-red-500 leading-none">Aayush</span>
+                    </div>
+                    
+                    <nav class="flex-1 min-w-0 overflow-x-auto flex items-center gap-1 sm:gap-2 px-1 scrollbar-hide">
+                        <button onclick="setCurrentView('links-view')" id="nav-links" class="nav-btn">Links</button>
+                        <button onclick="setCurrentView('document')" id="nav-docs" class="nav-btn">Docs</button>
+                        <button onclick="setCurrentView('memo')" id="nav-memos" class="nav-btn">Memos</button>
+                        <button onclick="setCurrentView('settings')" id="nav-settings" class="nav-btn px-2">
+                            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </button>
+                    </nav>
+
+                    <button id="logout-btn" class="flex-shrink-0 bg-red-500 hover:bg-red-600 text-white font-bold py-1.5 px-3 rounded-lg shadow transition-colors flex items-center text-sm">Logout</button>
+                </header>
+                <div id="content-area" class="w-full"></div>
+            </div>
+        `;
+
+        const getCurrentContentHtml = () => {
+            switch(currentView) {
+                case 'links-view': return renderLinkView();
+                case 'document': return renderDocumentSection();
+                case 'memo': return renderMemoSection();
+                case 'settings': return renderSettingsView();
+                default: return renderLinkView();
+            }
+        };
+
+        const renderLinkView = () => `
+            <div class="space-y-4 w-full">
+                <div class="flex justify-between items-center pb-2">
+                    <h2 class="text-lg sm:text-xl font-bold text-gray-800 flex items-center">Saved Links <span class="ml-2 text-gray-400 text-base font-medium">(${links.length})</span></h2>
+                    <button id="trigger-add-link-modal" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Add
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 gap-3">
+                    ${links.length === 0 ? '<div class="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300 text-gray-400">No links found.</div>' : links.map(l => `
+                        <div class="p-4 card rounded-lg transition-colors hover:shadow-md cursor-pointer group bg-white border border-gray-200 relative flex justify-between items-center" onclick="openLink('${l.url}', event)">
+                            <div class="min-w-0 flex-1 pr-4">
+                                <h3 class="font-bold text-blue-700 text-base mb-1 truncate">${l.title}</h3>
+                                <p class="text-xs text-gray-400 truncate font-mono">${l.url}</p>
+                            </div>
+                            <div class="flex space-x-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity link-actions" onclick="event.stopPropagation()">
+                                <button data-id="${l.id}" data-title="${l.title}" data-url="${l.url}" class="edit-link-btn p-2 text-yellow-600 hover:bg-yellow-50 rounded"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                <button data-id="${l.id}" class="delete-link-btn p-2 text-red-600 hover:bg-red-50 rounded"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const renderDocumentSection = () => `
+            <div class="space-y-6 w-full">
+                <h2 class="text-lg sm:text-xl font-bold text-gray-800 pb-2">Saved Documents <span class="text-gray-400 text-base font-medium">(${documents.length})</span></h2>
+                
+                <div id="drop-zone" class="bg-blue-50 border-2 border-dashed border-blue-200 rounded-xl p-6 sm:p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors hover:bg-blue-100 hover:border-blue-400">
+                    <input type="file" id="document-file" class="hidden">
+                    <div class="p-3 bg-white rounded-full shadow-sm mb-3">
+                        <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                    </div>
+                    <p id="drop-text" class="text-blue-900 font-semibold text-sm sm:text-base">Click or Drag file here</p>
+                    <p class="text-blue-400 text-xs mt-1">Max 50MB</p>
+                </div>
+
+                <div class="space-y-3">
+                    ${documents.length === 0 ? '<div class="text-center py-6 text-gray-400 italic">No documents.</div>' : documents.map(doc => `
+                        <div class="p-4 card rounded-lg bg-white border border-gray-200 flex items-center justify-between hover:shadow-md transition-colors group">
+                            <div class="flex items-center gap-3 overflow-hidden min-w-0">
+                                <div class="p-2 bg-orange-50 text-orange-500 rounded-lg flex-shrink-0">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <h3 class="font-bold text-gray-800 text-sm truncate" title="${doc.name}">${doc.name}</h3>
+                                    <p class="text-xs text-gray-400">${(doc.metadata.size / 1024 / 1024).toFixed(2)} MB</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                ${isFileViewable(doc.name) ? `<button data-name="${doc.name}" class="view-doc p-2 text-gray-400 hover:text-emerald-600 rounded hover:bg-emerald-50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>` : ''}
+                                <button data-name="${doc.name}" class="download-doc p-2 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
+                                <button data-name="${doc.name}" class="rename-doc p-2 text-gray-400 hover:text-yellow-600 rounded hover:bg-yellow-50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                <button data-name="${doc.name}" class="delete-doc p-2 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const renderMemoSection = () => `
+            <div class="space-y-6 w-full">
+                <h2 class="text-lg sm:text-xl font-bold text-gray-800 border-b border-gray-200 pb-4">Saved Memos <span class="text-gray-400 text-base font-medium">(${memos.length})</span></h2>
+                
+                <div class="card p-3 rounded-xl bg-white border border-gray-200 shadow-sm">
+                    <textarea id="add-memo-textarea" rows="3" placeholder="Write a new memo..." 
+                        class="w-full p-2 border-0 focus:ring-0 text-gray-700 placeholder-gray-400 resize-none bg-transparent outline-none text-base"></textarea>
+                    <div class="flex justify-end pt-2 border-t border-gray-100">
+                        <button id="save-memo-btn" class="px-4 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">Save</button>
+                    </div>
+                </div>
+
+                <div class="memo-scroll space-y-3 pr-1">
+                    ${memos.length === 0 ? '<p class="text-center text-gray-400 py-6">No memos yet.</p>' : memos.map(m => `
+                        <div class="card p-4 rounded-xl bg-[#fffbeb] border border-[#fcd34d] relative group hover:shadow-sm transition-shadow">
+                            <div class="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap font-medium">${m.content}</div>
+                            <div class="mt-3 flex justify-between items-end border-t border-[#fde68a] pt-2">
+                                <span class="text-xs text-yellow-700 font-semibold opacity-60">${new Date(m.created_at).toLocaleString()}</span>
+                                <div class="flex space-x-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button data-id="${m.id}" data-content="${m.content.replace(/"/g, '&quot;')}" class="edit-memo-btn p-1 text-yellow-800 hover:bg-yellow-200 rounded"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                    <button data-id="${m.id}" class="delete-memo-btn p-1 text-red-700 hover:bg-red-100 rounded"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
+        const renderSettingsView = () => `
+            <div class="w-full">
+                <h2 class="text-lg sm:text-xl font-bold text-gray-800 mb-4">Settings</h2>
+                <div class="card p-6 rounded-xl bg-white border border-gray-200 shadow-sm">
+                    <h3 class="text-base font-bold text-gray-800 mb-4 flex items-center text-red-600">Change Password</h3>
+                    <form id="password-change-form" class="space-y-4">
+                        <input type="password" id="current-password" required placeholder="Current Password" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <input type="password" id="new-password" required minlength="6" placeholder="New Password" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <input type="password" id="confirm-password" required minlength="6" placeholder="Confirm New Password" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <button type="submit" class="w-full py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors text-sm">Update Password</button>
+                    </form>
+                </div>
+            </div>
+        `;
+
+        const attachDynamicListeners = () => {
+             // Links Listeners
+             if (currentView === 'links-view') {
+                const addLinkTrigger = document.getElementById('trigger-add-link-modal');
+                if(addLinkTrigger) addLinkTrigger.onclick = () => {
+                    showModal(`
+                        <h3 class="text-lg font-bold mb-4">Add Link</h3>
+                        <form id="add-link-form" class="space-y-4">
+                            <input type="text" id="link-title" required placeholder="Title" class="w-full border p-2 rounded">
+                            <input type="url" id="link-url" required placeholder="URL" class="w-full border p-2 rounded">
+                            <div class="flex justify-end gap-2"><button type="button" onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded">Save</button></div>
+                        </form>
+                    `);
+                    document.getElementById('add-link-form').onsubmit = (e) => { e.preventDefault(); addLink(document.getElementById('link-title').value, document.getElementById('link-url').value); };
+                };
+                
+                document.querySelectorAll('.edit-link-btn').forEach(btn => btn.onclick = (e) => {
+                    const { id, title, url } = e.currentTarget.dataset;
+                    showModal(`
+                        <h3 class="text-lg font-bold mb-4">Edit Link</h3>
+                        <form id="edit-link-form" class="space-y-4">
+                            <input type="text" id="edit-title" value="${title}" required class="w-full border p-2 rounded">
+                            <input type="url" id="edit-url" value="${url}" required class="w-full border p-2 rounded">
+                            <div class="flex justify-end gap-2"><button type="button" onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Update</button></div>
+                        </form>
+                    `);
+                    document.getElementById('edit-link-form').onsubmit = (ev) => { ev.preventDefault(); updateLink(id, document.getElementById('edit-title').value, document.getElementById('edit-url').value); };
+                });
+                
+                document.querySelectorAll('.delete-link-btn').forEach(btn => btn.onclick = (e) => {
+                    const { id } = e.currentTarget.dataset;
+                    showModal(`<h3 class="font-bold text-red-600 mb-2">Delete Link?</h3><p class="text-gray-600 mb-4">This cannot be undone.</p><div class="flex justify-end gap-2"><button onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button id="confirm-del" class="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div>`);
+                    document.getElementById('confirm-del').onclick = () => deleteLink(id);
+                });
+             }
+             
+             // Memos Listeners
+             if (currentView === 'memo') {
+                 const saveBtn = document.getElementById('save-memo-btn');
+                 if(saveBtn) saveBtn.onclick = () => {
+                     const content = document.getElementById('add-memo-textarea').value.trim();
+                     if (content) addMemo(content);
+                 };
+                 
+                 document.querySelectorAll('.edit-memo-btn').forEach(btn => btn.onclick = (e) => {
+                     const { id, content } = e.currentTarget.dataset;
+                     showModal(`<h3 class="font-bold mb-4">Edit Memo</h3><form id="edit-memo-form"><textarea id="edit-content" rows="6" class="w-full border p-2 rounded mb-4" required>${content}</textarea><div class="flex justify-end gap-2"><button type="button" onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Save</button></div></form>`);
+                     document.getElementById('edit-memo-form').onsubmit = (ev) => { ev.preventDefault(); updateMemo(id, document.getElementById('edit-content').value); };
+                 });
+                 
+                 document.querySelectorAll('.delete-memo-btn').forEach(btn => btn.onclick = (e) => {
+                     const { id } = e.currentTarget.dataset;
+                     showModal(`<h3 class="font-bold text-red-600 mb-2">Delete Memo?</h3><div class="flex justify-end gap-2"><button onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button id="confirm-del" class="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div>`);
+                     document.getElementById('confirm-del').onclick = () => deleteMemo(id);
+                 });
+             }
+             
+             // Docs Listeners
+             if (currentView === 'document') {
+                const dropZone = document.getElementById('drop-zone');
+                const fileInput = document.getElementById('document-file');
+                
+                if (dropZone && fileInput) {
+                    dropZone.onclick = () => fileInput.click();
+                    fileInput.onchange = (e) => { if(e.target.files[0]) uploadDocument(e.target.files[0]); };
+                    
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                        dropZone.addEventListener(eventName, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+                    });
+                    ['dragenter', 'dragover'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-active'), false));
+                    ['dragleave', 'drop'].forEach(eventName => dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-active'), false));
+                    dropZone.addEventListener('drop', (e) => {
+                        const dt = e.dataTransfer;
+                        if (dt.files && dt.files[0]) uploadDocument(dt.files[0]);
+                    }, false);
+                }
+
+                document.querySelectorAll('.download-doc').forEach(btn => btn.onclick = e => downloadDocument(e.currentTarget.dataset.name));
+                document.querySelectorAll('.view-doc').forEach(btn => btn.onclick = e => viewDocument(e.currentTarget.dataset.name));
+                document.querySelectorAll('.delete-doc').forEach(btn => btn.onclick = e => {
+                    const name = e.currentTarget.dataset.name;
+                    showModal(`<h3 class="font-bold text-red-600 mb-2">Delete File?</h3><div class="flex justify-end gap-2"><button onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button id="confirm-del" class="px-4 py-2 bg-red-600 text-white rounded">Delete</button></div>`);
+                    document.getElementById('confirm-del').onclick = () => deleteDocument(name);
+                });
+                document.querySelectorAll('.rename-doc').forEach(btn => btn.onclick = e => {
+                    const oldName = e.currentTarget.dataset.name;
+                    const { baseName, extension } = getBaseNameAndExtension(oldName);
+                    showModal(`<h3 class="font-bold mb-4">Rename</h3><form id="rename-form"><div class="flex items-center"><input type="text" id="new-name" value="${baseName}" required class="w-full border p-2 rounded-l"><span class="bg-gray-100 border border-l-0 p-2 rounded-r text-gray-500">${extension}</span></div><div class="flex justify-end gap-2 mt-4"><button type="button" onclick="closeModal()" class="px-4 py-2 border rounded">Cancel</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded">Rename</button></div></form>`);
+                    document.getElementById('rename-form').onsubmit = (ev) => { ev.preventDefault(); renameDocument(oldName, document.getElementById('new-name').value.trim() + extension); };
+                });
+             }
+             
+             // Settings Listeners
+             if (currentView === 'settings') {
+                 const settingsForm = document.getElementById('password-change-form');
+                 if(settingsForm) settingsForm.onsubmit = (e) => {
+                     e.preventDefault();
+                     const curr = document.getElementById('current-password').value;
+                     const newP = document.getElementById('new-password').value;
+                     const confP = document.getElementById('confirm-password').value;
+                     if (newP !== confP) return displayMessage("Passwords don't match", 'error');
+                     changeUserPassword(curr, newP);
+                 };
+             }
+        };
+
+        window.onload = async () => {
+            // Initialize Supabase
+            supabase = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storageKey: SUPABASE_STORAGE_KEY, persistSession: false } });
+            
+            // Force Sign-out on Refresh to ensure clean state
+            if(supabase) {
+                await supabase.auth.signOut();
+                cleanupSession();
+            }
+
+            render();
+        };
+
+    </script>
+</body>
+</html>
