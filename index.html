@@ -267,7 +267,7 @@
             const password = document.getElementById('password').value;
             if (!password) return;
             const btn = document.getElementById('unlock-btn');
-            btn.textContent = '...'; btn.disabled = true;
+            btn.textContent = 'Checking Password'; btn.disabled = true;
 
             const { data, error } = await supabase.auth.signInWithPassword({ email: ALLOWED_EMAIL, password });
             if (error || !data.user || data.user.email !== ALLOWED_EMAIL) {
@@ -632,4 +632,5 @@
 
     </script>
 </body>
+
 </html>
