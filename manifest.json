@@ -1,14 +1,31 @@
 {
-  "name": "Aayush Baral - Private Hub",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "short_name": "PrivateHub",
+  "name": " -Personal Workspace",
   "icons": [
     {
-      "src": "logo.jpg",
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
       "sizes": "192x192",
-      "type": "image/jpg"
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "/",
+  "start_url": "/",
+  "background_color": "#f8fafc",
+  "theme_color": "#facc15",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "description": "Your private dashboard for links, documents, and memos."
 }
